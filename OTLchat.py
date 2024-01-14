@@ -2,6 +2,14 @@
 '''
 2. need to make work with windows paths
 3. remember to remove hard coded test path
+
+1. send out handshake salt encrypted with house salt
+	2. send out messages as normal
+3. look for other handshakes
+	4. decrypt messages acordingly
+5. delete own messages and handshakes when closed. 
+
+6. see what happens when you close the program but manualy delete a file...
 '''
 
 ## DEPENDENCIES ## 
@@ -42,9 +50,11 @@ def deliver(phrase, name, msg, address):
 	packet = forward(name + ': ' + msg, genkey(phrase))
 	rootdir = os.getcwd()
 	os.chdir(address)
-	with open(str(time.time()).replace('.', '-') + '.txt', 'wb') as f:
+	filename = str(time.time()).replace('.', '-') + '.txt'
+	with open(filename, 'wb') as f:
 		f.write(packet)
 	os.chdir(rootdir)
+	return filename
 
 
 def retrieve(phrase, address, ignore=[]):
@@ -72,7 +82,9 @@ class OTL:
 		self.address = None
 		self.ready = False
 
+		self.handshakes = []
 		self.ignore = []
+		self.ephemera = []
 		self.messages = []
 
 		self.root = tk.Tk()
@@ -110,7 +122,7 @@ class OTL:
 
 		self.comwin = tk.Text(self.root)
 		self.comwin.config(bg='black', fg='paleturquoise1', borderwidth=0,
-			highlightthickness=1, height=3, width=75, font='Courier',
+			highlightthickness=0, height=3, width=75, font='Courier',
 			wrap=tk.WORD, insertofftime=300, insertwidth=6,
 			insertbackground='red3', padx=5)
 		self.comwin.tag_config('prompt', foreground='red3')
@@ -126,8 +138,17 @@ class OTL:
 		self.comwin.bind('<KeyRelease>', self.PromptProtect)
 		self.comwin.bind('<Key>', self.HidePhrase)
 		self.comwin.bind('<Return>', self.ComReturn)
+		self.comwin.bind('<Destroy>', self.OnDestroy)
 
 		self.root.mainloop()
+
+
+	def OnDestroy(self, event):
+		rootdir = os.getcwd()
+		os.chdir(self.address)
+		for file in self.ephemera:
+			os.remove(file)
+		os.chdir(rootdir)
 
 
 	def InfoRefresh(self, status, tag):
@@ -199,7 +220,8 @@ class OTL:
 			if len(msg) != 0:
 				self.InfoRefresh('sending', 'blue')
 				try:
-					deliver(self.phrase, self.name, msg, self.address)
+					self.ephemera.append(deliver(self.phrase, self.name, msg,\
+						self.address))
 				except:
 					self.InfoRefresh('send failed', 'red')
 				else:
